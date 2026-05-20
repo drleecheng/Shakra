@@ -17,32 +17,47 @@ let modelLoaded = false;
 let audioLoaded = false;
 let camSignal = false;
 
-// Triggered when the user successfully clicks the enabled Start button
-async function cameraOnSignal() {
-  // Start the audio context (crucial requirement for modern browsers)
-  await Tone.start();
-  console.log("Audio Context Started");
+// Triggered ONLY when the user clicks the colorful "Click Anywhere to Start" screen
+async function startGameSequence() {
+  if (Tone.context && typeof Tone.context.resume === 'function') {
+    await Tone.context.resume();
+    console.log("Audio Context Resumed");
+  } else if (typeof Tone.start === 'function') {
+    await Tone.start();
+    console.log("Audio Context Started");
+  }
   
-  // Start the webcam and model detection safely
+  displayCamera();
+
+  // Fix stretching: Create capture with explicit fallback dimensions
   video = createCapture(VIDEO);
+  video.size(640, 480); // Establish explicit internal video tracking aspect ratio
   video.hide();
+  
   handPose.detectStart(video, gotHands);
   camSignal = true;
 }
 
 function setup() {
-  p5canvas = createCanvas(640, 480);
+  let targetRatio = 4 / 3;
+  let w = windowWidth;
+  let h = windowHeight;
+
+  if (windowWidth / windowHeight > targetRatio) {
+    w = windowHeight * targetRatio;
+  } else {
+    h = windowWidth / targetRatio;
+  }
+
+  p5canvas = createCanvas(w * 0.95, h * 0.95); 
   p5canvas.parent('#canvas');
   
-  // Initialize handPose model immediately on setup
   handPose = ml5.handPose(modelReady);
 
-  // Load instruments audio samples
   instruments = SampleLibrary.load({
     instruments: ["violin","flute"], ext: ".wav", baseUrl: "samples/"
   });
 
-  // Setting up the sound libraries
   Tone.Buffer.on('load', function() {
     currentRight = instruments["violin"];
     currentRight.toMaster();
@@ -50,25 +65,24 @@ function setup() {
     currentLeft.toMaster();
     
     audioLoaded = true;
-    checkIfReady(); // Check if we can unlock the button yet
+    checkIfReady(); 
   });
 }
 
 function modelReady() {
   console.log("HandPose Model Loaded!");
   modelLoaded = true;
-  checkIfReady(); // Check if we can unlock the button yet
+  checkIfReady(); 
 }
 
-// Verification gatekeeper function
 function checkIfReady() {
   if (modelLoaded && audioLoaded) {
-    let startBtn = document.getElementById("button_webcam");
-    if (startBtn) {
-      startBtn.disabled = false;
-      startBtn.innerText = "Start Game";
-      startBtn.style.backgroundColor = "#04AA6D";
-      startBtn.style.cursor = "pointer";
+    let startImg = document.getElementById("startGraphic");
+    if (startImg) {
+      startImg.src = "ready_screen.png";
+      startImg.style.cursor = "pointer";
+      startImg.style.pointerEvents = "auto";
+      console.log("Assets loaded completely. Application unlocked.");
     }
   }
 }
@@ -80,40 +94,51 @@ function windowResized() {
   resizeCanvas(w * 0.95, h * 0.95);
 }
 
-// Callback function for when handPose outputs data
 function gotHands(results) {
   hands = results;
 }
 
 function draw() {
-  // 1. FLIP THE VIDEO HORIZONTALLY (Mirror Mode)
+  background(255); // Clears background to prevent artifacts
+
+  // 1. DRAW FLIPPED VIDEO
   push(); 
   translate(width, 0); 
   scale(-1, 1); 
-  
-  // Only try to draw video if it has been instantiated via the click event
   if (video) {
+    // Draws the video to seamlessly stretch to your responsive canvas sizes
     image(video, 0, 0, width, height);
   }
   pop(); 
 
-  // If there is at least one hand and game has started
+  // 2. TRACK AND CALIBRATE COORDINATES
   if ((hands.length > 0) && (camSignal)) {
     stroke(0);
     strokeWeight(2);
+    
+    // We use video.width & video.height (the model's reference grid) 
+    // and scale them proportionally to match current canvas width & height!
     if (hands.length == 1) {
-        rightHandfinger = { x: width - hands[0].index_finger_tip.x, y: hands[0].index_finger_tip.y };
+        let rawX = map(hands[0].index_finger_tip.x, 0, video.width, 0, width);
+        let scaledY = map(hands[0].index_finger_tip.y, 0, video.height, 0, height);
+        rightHandfinger = { x: width - rawX, y: scaledY };
     }
     if (hands.length > 1) {
-        rightHandfinger = { x: width - hands[0].index_finger_tip.x, y: hands[0].index_finger_tip.y };
-        leftHandfinger = { x: width - hands[1].index_finger_tip.x, y: hands[1].index_finger_tip.y };
+        let rawX0 = map(hands[0].index_finger_tip.x, 0, video.width, 0, width);
+        let scaledY0 = map(hands[0].index_finger_tip.y, 0, video.height, 0, height);
+        rightHandfinger = { x: width - rawX0, y: scaledY0 };
+        
+        let rawX1 = map(hands[1].index_finger_tip.x, 0, video.width, 0, width);
+        let scaledY1 = map(hands[1].index_finger_tip.y, 0, video.height, 0, height);
+        leftHandfinger = { x: width - rawX1, y: scaledY1 };
     }
+    
     for (let i = 0; i < hands.length; i++) 
     {
         if (i == 0)
         {
             fill(0, 255, 0, 200);
-            circle(rightHandfinger.x, rightHandfinger.y, 20);
+            circle(rightHandfinger.x, rightHandfinger.y, 25); // Slightly larger circle for children
             if (currentRightHandLevel != floor(10-(rightHandfinger.y-50)/(height/11)))
             {
                 currentRight.triggerRelease(Tone.Frequency(currentRightHandNote, "midi").toNote());
@@ -139,7 +164,7 @@ function draw() {
         else if (i == 1)
         {
             fill(255, 0, 0, 200);
-            circle(leftHandfinger.x, leftHandfinger.y, 20);
+            circle(leftHandfinger.x, leftHandfinger.y, 25);
             if (currentLeftHandLevel != floor(10-(leftHandfinger.y-50)/(height/11)))
             {
                 currentLeft.triggerRelease(Tone.Frequency(currentLeftHandNote, "midi").toNote());

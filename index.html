@@ -9,21 +9,13 @@
 
 <body>
 
-  <h1 style="text-align: center;">Shakra - A finger music game</h1>
-  <div style="text-align: center;">
-    <!-- Modified button: Starts disabled and shows loading status -->
-    <button id="button_webcam" disabled onclick="displayCamera(); cameraOnSignal(); this.style.display='none';" style="display: inline-block; max-width: 640px; border: none; background-color: #888888; color: white; padding: 14px 28px; font-size: 16px; cursor: not-allowed; text-align: center;">
-      Loading instruments & model...
-    </button>
-  </div>
-
-  <!-- Carousel -->
-  <div id="slides" style="text-align: center;">
+  <div id="slides" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%;">
     <br/>
-    <img src="Pinch.jpg" style="max-width:640px">
+    <img id="startGraphic" src="loading_screen.png" alt="Shakra Loading Screen" 
+         onclick="startGameSequence();"
+         style="max-width: 1280px; width: 100%; height: auto; cursor: not-allowed; pointer-events: none;">
   </div>
 
-  <!-- Check if mobile -->
   <h1 id="mobile" style="text-align: center;">Turn on audio on your device</h1>
   <script>
     let details = navigator.userAgent;
@@ -34,17 +26,17 @@
     }
   </script>
 
-  <!-- Display camera when button clicked -->
   <script>
   function displayCamera() {
+    // Hide the startup graphics container cleanly
     document.getElementById("slides").style.display = "none";
+    // Show your game canvas
     document.getElementById("canvas").style.display = "block";
   }
   </script>
 
   <div id="canvas" style="text-align: center; display: none"></div>
 
-  <!-- include js libraries -->
   <script src="libraries/p5.js"></script>
   <script src="libraries/ml5.min.js"></script>
   <script src="libraries/Tone.js"></script>
